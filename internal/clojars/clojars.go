@@ -49,10 +49,10 @@ func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 }
 
 type artifactResponse struct {
-	GroupName    string        `json:"group_name"`
-	JarName      string        `json:"jar_name"`
-	Description  string        `json:"description"`
-	Homepage     string        `json:"homepage"`
+	GroupName      string        `json:"group_name"`
+	JarName        string        `json:"jar_name"`
+	Description    string        `json:"description"`
+	Homepage       string        `json:"homepage"`
 	RecentVersions []versionInfo `json:"recent_versions"`
 }
 
@@ -62,12 +62,12 @@ type versionInfo struct {
 }
 
 type versionDetailResponse struct {
-	Version     string    `json:"version"`
-	Description string    `json:"description"`
-	Homepage    string    `json:"homepage"`
-	CreatedEpoch int64    `json:"created"`
-	Licenses    []string  `json:"licenses"`
-	SCM         scmInfo   `json:"scm"`
+	Version      string    `json:"version"`
+	Description  string    `json:"description"`
+	Homepage     string    `json:"homepage"`
+	CreatedEpoch int64     `json:"created"`
+	Licenses     []string  `json:"licenses"`
+	SCM          scmInfo   `json:"scm"`
 	Dependencies []depInfo `json:"dependencies"`
 }
 

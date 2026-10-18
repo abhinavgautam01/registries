@@ -115,10 +115,10 @@ func TestFetchVersions(t *testing.T) {
 func TestFetchDependencies(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := formulaResponse{
-			Name:              "imagemagick",
-			Dependencies:      []string{"libtool", "pkg-config", "jpeg"},
-			BuildDependencies: []string{"cmake"},
-			TestDependencies:  []string{"webp"},
+			Name:                 "imagemagick",
+			Dependencies:         []string{"libtool", "pkg-config", "jpeg"},
+			BuildDependencies:    []string{"cmake"},
+			TestDependencies:     []string{"webp"},
 			OptionalDependencies: []string{"ghostscript"},
 		}
 		_ = json.NewEncoder(w).Encode(resp)

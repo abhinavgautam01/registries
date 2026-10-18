@@ -122,7 +122,7 @@ func TestFetchDependencies(t *testing.T) {
 					Dependencies: map[string]interface{}{
 						"mir-algorithm": "~>3.3.0",
 						"taggedalgebraic": map[string]interface{}{
-							"version": "~>0.6.0",
+							"version":  "~>0.6.0",
 							"optional": true,
 						},
 					},

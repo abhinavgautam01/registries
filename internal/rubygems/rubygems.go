@@ -49,21 +49,21 @@ func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 }
 
 type gemResponse struct {
-	Name           string            `json:"name"`
-	Info           string            `json:"info"`
-	Version        string            `json:"version"`
-	Downloads      int               `json:"downloads"`
-	Licenses       []string          `json:"licenses"`
-	SHA            string            `json:"sha"`
-	HomepageURI    string            `json:"homepage_uri"`
-	SourceCodeURI  string            `json:"source_code_uri"`
-	WikiURI        string            `json:"wiki_uri"`
-	DocumentURI    string            `json:"documentation_uri"`
-	BugTrackerURI  string            `json:"bug_tracker_uri"`
-	ChangelogURI   string            `json:"changelog_uri"`
-	FundingURI     string            `json:"funding_uri"`
-	Metadata       map[string]string `json:"metadata"`
-	Dependencies   dependenciesBlock `json:"dependencies"`
+	Name          string            `json:"name"`
+	Info          string            `json:"info"`
+	Version       string            `json:"version"`
+	Downloads     int               `json:"downloads"`
+	Licenses      []string          `json:"licenses"`
+	SHA           string            `json:"sha"`
+	HomepageURI   string            `json:"homepage_uri"`
+	SourceCodeURI string            `json:"source_code_uri"`
+	WikiURI       string            `json:"wiki_uri"`
+	DocumentURI   string            `json:"documentation_uri"`
+	BugTrackerURI string            `json:"bug_tracker_uri"`
+	ChangelogURI  string            `json:"changelog_uri"`
+	FundingURI    string            `json:"funding_uri"`
+	Metadata      map[string]string `json:"metadata"`
+	Dependencies  dependenciesBlock `json:"dependencies"`
 }
 
 type dependenciesBlock struct {

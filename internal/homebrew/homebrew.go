@@ -49,24 +49,24 @@ func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 }
 
 type formulaResponse struct {
-	Name             string          `json:"name"`
-	FullName         string          `json:"full_name"`
-	Tap              string          `json:"tap"`
-	Desc             string          `json:"desc"`
-	License          string          `json:"license"`
-	Homepage         string          `json:"homepage"`
-	Versions         versionsInfo    `json:"versions"`
-	URLs             urlsInfo        `json:"urls"`
-	Dependencies     []string        `json:"dependencies"`
-	BuildDependencies []string       `json:"build_dependencies"`
-	TestDependencies []string        `json:"test_dependencies"`
-	OptionalDependencies []string    `json:"optional_dependencies"`
-	VersionedFormulae []string       `json:"versioned_formulae"`
-	Deprecated       bool            `json:"deprecated"`
-	DeprecationDate  string          `json:"deprecation_date"`
-	DeprecationReason string         `json:"deprecation_reason"`
-	Disabled         bool            `json:"disabled"`
-	Analytics        analyticsInfo   `json:"analytics"`
+	Name                 string        `json:"name"`
+	FullName             string        `json:"full_name"`
+	Tap                  string        `json:"tap"`
+	Desc                 string        `json:"desc"`
+	License              string        `json:"license"`
+	Homepage             string        `json:"homepage"`
+	Versions             versionsInfo  `json:"versions"`
+	URLs                 urlsInfo      `json:"urls"`
+	Dependencies         []string      `json:"dependencies"`
+	BuildDependencies    []string      `json:"build_dependencies"`
+	TestDependencies     []string      `json:"test_dependencies"`
+	OptionalDependencies []string      `json:"optional_dependencies"`
+	VersionedFormulae    []string      `json:"versioned_formulae"`
+	Deprecated           bool          `json:"deprecated"`
+	DeprecationDate      string        `json:"deprecation_date"`
+	DeprecationReason    string        `json:"deprecation_reason"`
+	Disabled             bool          `json:"disabled"`
+	Analytics            analyticsInfo `json:"analytics"`
 }
 
 type versionsInfo struct {
@@ -121,9 +121,9 @@ func (r *Registry) FetchPackage(ctx context.Context, name string) (*core.Package
 		Repository:  repository,
 		Licenses:    resp.License,
 		Metadata: map[string]any{
-			"tap":               resp.Tap,
-			"full_name":         resp.FullName,
-			"status":            status,
+			"tap":                resp.Tap,
+			"full_name":          resp.FullName,
+			"status":             status,
 			"deprecation_reason": resp.DeprecationReason,
 		},
 	}, nil

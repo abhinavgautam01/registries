@@ -60,14 +60,14 @@ type packageDescription struct {
 		PkgName    string `json:"pkgName"`
 		PkgVersion string `json:"pkgVersion"`
 	} `json:"package"`
-	Synopsis    string `json:"synopsis"`
-	Description string `json:"description"`
-	License     string `json:"license"`
-	Homepage    string `json:"homepage"`
-	Author      string `json:"author"`
-	Maintainer  string `json:"maintainer"`
-	Category    string `json:"category"`
-	SourceRepos []sourceRepo `json:"sourceRepos"`
+	Synopsis     string       `json:"synopsis"`
+	Description  string       `json:"description"`
+	License      string       `json:"license"`
+	Homepage     string       `json:"homepage"`
+	Author       string       `json:"author"`
+	Maintainer   string       `json:"maintainer"`
+	Category     string       `json:"category"`
+	SourceRepos  []sourceRepo `json:"sourceRepos"`
 	Dependencies []struct {
 		Components []string `json:"components"`
 		Dependency string   `json:"dependency"`
@@ -75,7 +75,7 @@ type packageDescription struct {
 }
 
 type sourceRepo struct {
-	RepoType   string `json:"repoType"`
+	RepoType     string `json:"repoType"`
 	RepoLocation string `json:"repoLocation"`
 }
 

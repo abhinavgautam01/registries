@@ -48,13 +48,13 @@ func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 }
 
 type moduleResponse struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Homepage    string            `json:"homepage"`
-	License     string            `json:"license"`
-	Labels      []string          `json:"labels"`
+	Name        string                   `json:"name"`
+	Description string                   `json:"description"`
+	Homepage    string                   `json:"homepage"`
+	License     string                   `json:"license"`
+	Labels      []string                 `json:"labels"`
 	Versions    map[string][]rockVersion `json:"versions"`
-	Maintainers []maintainerInfo  `json:"maintainers"`
+	Maintainers []maintainerInfo         `json:"maintainers"`
 }
 
 type rockVersion struct {
@@ -67,19 +67,19 @@ type maintainerInfo struct {
 }
 
 type rockspec struct {
-	Package      string                 `json:"package"`
-	Version      string                 `json:"version"`
-	Description  rockspecDescription    `json:"description"`
-	Dependencies []string               `json:"dependencies"`
-	Source       rockspecSource         `json:"source"`
+	Package      string              `json:"package"`
+	Version      string              `json:"version"`
+	Description  rockspecDescription `json:"description"`
+	Dependencies []string            `json:"dependencies"`
+	Source       rockspecSource      `json:"source"`
 }
 
 type rockspecDescription struct {
-	Summary     string `json:"summary"`
+	Summary             string `json:"summary"`
 	DetailedDescription string `json:"detailed"`
-	Homepage    string `json:"homepage"`
-	License     string `json:"license"`
-	Maintainer  string `json:"maintainer"`
+	Homepage            string `json:"homepage"`
+	License             string `json:"license"`
+	Maintainer          string `json:"maintainer"`
 }
 
 type rockspecSource struct {

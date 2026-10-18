@@ -121,9 +121,9 @@ func TestFetchDependencies(t *testing.T) {
 					"v7.0.0": {
 						Version: "v7.0.0",
 						Require: map[string]string{
-							"php":                      ">=8.2",
+							"php":                       ">=8.2",
 							"symfony/polyfill-mbstring": "~1.0",
-							"symfony/string":           "^6.4|^7.0",
+							"symfony/string":            "^6.4|^7.0",
 						},
 						RequireDev: map[string]string{
 							"phpunit/phpunit": "^10.5",

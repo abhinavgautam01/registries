@@ -120,15 +120,15 @@ func TestFetchVersions(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(resp)
 		case "/api/packages/phoenix/releases/1.7.0":
 			resp := versionResponse{
-				Version:  "1.7.0",
-				Checksum: "abc123",
+				Version:   "1.7.0",
+				Checksum:  "abc123",
 				Downloads: 1000000,
 			}
 			_ = json.NewEncoder(w).Encode(resp)
 		case "/api/packages/phoenix/releases/1.6.0":
 			resp := versionResponse{
-				Version:  "1.6.0",
-				Checksum: "def456",
+				Version:   "1.6.0",
+				Checksum:  "def456",
 				Downloads: 5000000,
 				Retirement: map[string]interface{}{
 					"reason":  "security",
@@ -177,9 +177,9 @@ func TestFetchDependencies(t *testing.T) {
 		resp := versionResponse{
 			Version: "1.7.0",
 			Requirements: map[string]requirementInfo{
-				"plug":        {Requirement: "~> 1.14", Optional: false},
+				"plug":           {Requirement: "~> 1.14", Optional: false},
 				"phoenix_pubsub": {Requirement: "~> 2.1", Optional: false},
-				"telemetry":   {Requirement: "~> 0.4 or ~> 1.0", Optional: true},
+				"telemetry":      {Requirement: "~> 0.4 or ~> 1.0", Optional: true},
 			},
 		}
 

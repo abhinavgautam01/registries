@@ -49,13 +49,13 @@ func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 }
 
 type packageResponse struct {
-	Name        string   `json:"name"`
-	URL         string   `json:"url"`
-	Method      string   `json:"method"`
-	Tags        []string `json:"tags"`
-	Description string   `json:"description"`
-	License     string   `json:"license"`
-	Web         string   `json:"web"`
+	Name        string        `json:"name"`
+	URL         string        `json:"url"`
+	Method      string        `json:"method"`
+	Tags        []string      `json:"tags"`
+	Description string        `json:"description"`
+	License     string        `json:"license"`
+	Web         string        `json:"web"`
 	Versions    []versionInfo `json:"versions"`
 }
 
@@ -64,20 +64,20 @@ type versionInfo struct {
 }
 
 type packageDetailResponse struct {
-	Name        string   `json:"name"`
-	Alias       string   `json:"alias"`
-	URL         string   `json:"url"`
-	Method      string   `json:"method"`
-	Tags        []string `json:"tags"`
-	Description string   `json:"description"`
-	License     string   `json:"license"`
-	Web         string   `json:"web"`
-	Doc         string   `json:"doc"`
+	Name        string          `json:"name"`
+	Alias       string          `json:"alias"`
+	URL         string          `json:"url"`
+	Method      string          `json:"method"`
+	Tags        []string        `json:"tags"`
+	Description string          `json:"description"`
+	License     string          `json:"license"`
+	Web         string          `json:"web"`
+	Doc         string          `json:"doc"`
 	Versions    []versionDetail `json:"versions"`
 }
 
 type versionDetail struct {
-	Version string   `json:"version"`
+	Version  string   `json:"version"`
 	Requires []string `json:"requires"`
 }
 

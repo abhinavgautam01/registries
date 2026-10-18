@@ -78,8 +78,8 @@ func (r *Registry) FetchPackage(ctx context.Context, name string) (*core.Package
 		Name:       pkg.name,
 		Repository: urlparser.Parse(pkg.repo),
 		Metadata: map[string]any{
-			"uuid":    pkg.uuid,
-			"subdir":  pkg.subdir,
+			"uuid":   pkg.uuid,
+			"subdir": pkg.subdir,
 		},
 	}, nil
 }

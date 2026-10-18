@@ -38,8 +38,8 @@ var npmResponse = map[string]interface{}{
 	"maintainers": []map[string]string{{"name": "jdalton", "email": "john@example.com"}},
 	"versions": map[string]interface{}{
 		"4.17.21": map[string]interface{}{
-			"name":    "lodash",
-			"version": "4.17.21",
+			"name":         "lodash",
+			"version":      "4.17.21",
 			"dependencies": map[string]string{},
 		},
 	},
@@ -148,7 +148,7 @@ func BenchmarkJSONParsing_Small(b *testing.B) {
 func BenchmarkJSONParsing_Large(b *testing.B) {
 	// Simulate a large npm response with many versions
 	largeResponse := map[string]interface{}{
-		"name": "lodash",
+		"name":     "lodash",
 		"versions": make(map[string]interface{}),
 	}
 	versions := largeResponse["versions"].(map[string]interface{})

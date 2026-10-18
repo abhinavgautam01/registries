@@ -49,21 +49,21 @@ func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 }
 
 type packageResponse struct {
-	Name         string   `json:"name"`
-	Description  string   `json:"description"`
-	Website      string   `json:"website"`
-	License      string   `json:"license"`
-	Tags         []string `json:"tags"`
-	Owner        string   `json:"owner"`
-	Contributors []string `json:"contributors"`
+	Name         string        `json:"name"`
+	Description  string        `json:"description"`
+	Website      string        `json:"website"`
+	License      string        `json:"license"`
+	Tags         []string      `json:"tags"`
+	Owner        string        `json:"owner"`
+	Contributors []string      `json:"contributors"`
 	Versions     []versionInfo `json:"versions"`
-	Downloads    int      `json:"downloads"`
+	Downloads    int           `json:"downloads"`
 }
 
 type versionInfo struct {
-	Version      string   `json:"version"`
-	Date         string   `json:"date"`
-	Comments     string   `json:"comments"`
+	Version      string            `json:"version"`
+	Date         string            `json:"date"`
+	Comments     string            `json:"comments"`
 	Dependencies map[string]string `json:"dependencies"`
 }
 

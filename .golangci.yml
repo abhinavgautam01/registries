@@ -5,3 +5,6 @@ linters:
   settings:
     goconst:
       ignore-tests: true
+formatters:
+  enable:
+    - gofmt

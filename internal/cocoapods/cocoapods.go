@@ -61,17 +61,17 @@ type versionInfo struct {
 }
 
 type podSpec struct {
-	Name             string                 `json:"name"`
-	Version          string                 `json:"version"`
-	Summary          string                 `json:"summary"`
-	Description      string                 `json:"description"`
-	Homepage         string                 `json:"homepage"`
-	License          interface{}            `json:"license"`
-	Authors          interface{}            `json:"authors"`
-	Source           map[string]interface{} `json:"source"`
-	Dependencies     map[string]interface{} `json:"dependencies"`
-	Platforms        map[string]string      `json:"platforms"`
-	SwiftVersions    interface{}            `json:"swift_versions"`
+	Name          string                 `json:"name"`
+	Version       string                 `json:"version"`
+	Summary       string                 `json:"summary"`
+	Description   string                 `json:"description"`
+	Homepage      string                 `json:"homepage"`
+	License       interface{}            `json:"license"`
+	Authors       interface{}            `json:"authors"`
+	Source        map[string]interface{} `json:"source"`
+	Dependencies  map[string]interface{} `json:"dependencies"`
+	Platforms     map[string]string      `json:"platforms"`
+	SwiftVersions interface{}            `json:"swift_versions"`
 }
 
 type ownerInfo struct {

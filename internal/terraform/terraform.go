@@ -79,14 +79,14 @@ type moduleVersionsEntry struct {
 }
 
 type versionEntry struct {
-	Version    string `json:"version"`
+	Version    string           `json:"version"`
 	Submodules []submoduleEntry `json:"submodules"`
-	Root       rootModule `json:"root"`
+	Root       rootModule       `json:"root"`
 }
 
 type submoduleEntry struct {
-	Path         string             `json:"path"`
-	Dependencies []dependencyEntry  `json:"dependencies"`
+	Path         string            `json:"path"`
+	Dependencies []dependencyEntry `json:"dependencies"`
 }
 
 type rootModule struct {

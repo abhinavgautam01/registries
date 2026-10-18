@@ -50,20 +50,20 @@ func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 }
 
 type packageResponse struct {
-	Name           string        `json:"name"`
-	Description    string        `json:"description"`
-	Homepage       string        `json:"homepage"`
-	Repository     string        `json:"repository"`
-	DocumentationURL string      `json:"documentationURL"`
-	Categories     []string      `json:"categories"`
-	Versions       []versionInfo `json:"versions"`
-	Owner          string        `json:"owner"`
+	Name             string        `json:"name"`
+	Description      string        `json:"description"`
+	Homepage         string        `json:"homepage"`
+	Repository       string        `json:"repository"`
+	DocumentationURL string        `json:"documentationURL"`
+	Categories       []string      `json:"categories"`
+	Versions         []versionInfo `json:"versions"`
+	Owner            string        `json:"owner"`
 }
 
 type versionInfo struct {
-	Version      string    `json:"version"`
-	Date         string    `json:"date"`
-	License      string    `json:"license"`
+	Version      string                 `json:"version"`
+	Date         string                 `json:"date"`
+	License      string                 `json:"license"`
 	Dependencies map[string]interface{} `json:"dependencies"`
 }
 
@@ -98,7 +98,7 @@ func (r *Registry) FetchPackage(ctx context.Context, name string) (*core.Package
 		Licenses:    license,
 		Keywords:    resp.Categories,
 		Metadata: map[string]any{
-			"owner":            resp.Owner,
+			"owner":             resp.Owner,
 			"documentation_url": resp.DocumentationURL,
 		},
 	}, nil

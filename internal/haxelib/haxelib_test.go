@@ -19,14 +19,14 @@ func TestFetchPackage(t *testing.T) {
 		}
 
 		resp := packageResponse{
-			Name:        "openfl",
-			Description: "Open Flash Library",
-			Website:     "https://github.com/openfl/openfl",
-			License:     "MIT",
-			Tags:        []string{"graphics", "game"},
-			Owner:       "jdonaldson",
+			Name:         "openfl",
+			Description:  "Open Flash Library",
+			Website:      "https://github.com/openfl/openfl",
+			License:      "MIT",
+			Tags:         []string{"graphics", "game"},
+			Owner:        "jdonaldson",
 			Contributors: []string{"player-03", "Aurel300"},
-			Downloads:   50000,
+			Downloads:    50000,
 			Versions: []versionInfo{
 				{Version: "9.2.0"},
 				{Version: "9.1.0"},

@@ -50,8 +50,8 @@ func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 }
 
 type crateResponse struct {
-	Crate    crateInfo        `json:"crate"`
-	Versions []versionInfo    `json:"versions"`
+	Crate    crateInfo     `json:"crate"`
+	Versions []versionInfo `json:"versions"`
 }
 
 type crateInfo struct {

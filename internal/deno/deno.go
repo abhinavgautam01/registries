@@ -57,11 +57,11 @@ type moduleResponse struct {
 }
 
 type moduleInfoResponse struct {
-	Name            string          `json:"name"`
-	Description     string          `json:"description"`
-	LatestVersion   string          `json:"latest_version"`
-	Versions        []string        `json:"versions"`
-	UploadOptions   uploadOptions   `json:"upload_options"`
+	Name          string        `json:"name"`
+	Description   string        `json:"description"`
+	LatestVersion string        `json:"latest_version"`
+	Versions      []string      `json:"versions"`
+	UploadOptions uploadOptions `json:"upload_options"`
 }
 
 type uploadOptions struct {
@@ -71,14 +71,14 @@ type uploadOptions struct {
 }
 
 type versionResponse struct {
-	Version     string    `json:"version"`
-	UploadedAt  time.Time `json:"uploaded_at"`
+	Version    string    `json:"version"`
+	UploadedAt time.Time `json:"uploaded_at"`
 }
 
 type versionMetaResponse struct {
-	UploadedAt       string            `json:"uploaded_at"`
-	DirectoryListing []directoryEntry  `json:"directory_listing"`
-	UploadOptions    uploadOptions     `json:"upload_options"`
+	UploadedAt       string           `json:"uploaded_at"`
+	DirectoryListing []directoryEntry `json:"directory_listing"`
+	UploadOptions    uploadOptions    `json:"upload_options"`
 }
 
 type directoryEntry struct {

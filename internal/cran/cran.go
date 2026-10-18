@@ -52,20 +52,20 @@ func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 
 // descriptionInfo holds parsed DESCRIPTION file data
 type descriptionInfo struct {
-	Package      string
-	Version      string
-	Title        string
-	Description  string
-	License      string
-	URL          string
-	BugReports   string
-	Author       string
-	Maintainer   string
-	Depends      string
-	Imports      string
-	Suggests     string
-	LinkingTo    string
-	Published    string
+	Package          string
+	Version          string
+	Title            string
+	Description      string
+	License          string
+	URL              string
+	BugReports       string
+	Author           string
+	Maintainer       string
+	Depends          string
+	Imports          string
+	Suggests         string
+	LinkingTo        string
+	Published        string
 	NeedsCompilation string
 }
 
@@ -92,9 +92,9 @@ func (r *Registry) FetchPackage(ctx context.Context, name string) (*core.Package
 		Repository:  repository,
 		Licenses:    desc.License,
 		Metadata: map[string]any{
-			"author":       desc.Author,
-			"maintainer":   desc.Maintainer,
-			"bug_reports":  desc.BugReports,
+			"author":            desc.Author,
+			"maintainer":        desc.Maintainer,
+			"bug_reports":       desc.BugReports,
 			"needs_compilation": desc.NeedsCompilation,
 		},
 	}, nil

@@ -61,21 +61,21 @@ type registrationLeaf struct {
 }
 
 type catalogEntry struct {
-	CatalogURL    string   `json:"@id"`
-	ID            string   `json:"id"`
-	Version       string   `json:"version"`
-	Description   string   `json:"description"`
-	Summary       string   `json:"summary"`
-	Authors       string   `json:"authors"`
-	IconURL       string   `json:"iconUrl"`
-	LicenseURL    string   `json:"licenseUrl"`
-	ProjectURL    string   `json:"projectUrl"`
-	Published     string   `json:"published"`
-	Tags          []string `json:"tags"`
-	Listed        bool     `json:"listed"`
-	Deprecation   *deprecationInfo `json:"deprecation"`
-	Dependencies  []dependencyGroup `json:"dependencyGroups"`
-	LicenseExpression string `json:"licenseExpression"`
+	CatalogURL        string            `json:"@id"`
+	ID                string            `json:"id"`
+	Version           string            `json:"version"`
+	Description       string            `json:"description"`
+	Summary           string            `json:"summary"`
+	Authors           string            `json:"authors"`
+	IconURL           string            `json:"iconUrl"`
+	LicenseURL        string            `json:"licenseUrl"`
+	ProjectURL        string            `json:"projectUrl"`
+	Published         string            `json:"published"`
+	Tags              []string          `json:"tags"`
+	Listed            bool              `json:"listed"`
+	Deprecation       *deprecationInfo  `json:"deprecation"`
+	Dependencies      []dependencyGroup `json:"dependencyGroups"`
+	LicenseExpression string            `json:"licenseExpression"`
 }
 
 type deprecationInfo struct {

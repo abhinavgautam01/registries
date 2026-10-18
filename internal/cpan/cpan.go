@@ -49,11 +49,11 @@ func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 }
 
 type distributionResponse struct {
-	Name     string `json:"name"`
-	Abstract string `json:"abstract"`
-	Version  string `json:"version"`
-	License  []string `json:"license"`
-	Author   string `json:"author"`
+	Name      string   `json:"name"`
+	Abstract  string   `json:"abstract"`
+	Version   string   `json:"version"`
+	License   []string `json:"license"`
+	Author    string   `json:"author"`
 	Resources struct {
 		Homepage   string `json:"homepage"`
 		Repository struct {
@@ -95,9 +95,9 @@ type releaseInfo struct {
 }
 
 type authorResponse struct {
-	Name  string `json:"name"`
-	Email []string `json:"email"`
-	PAUSEID string `json:"pauseid"`
+	Name    string   `json:"name"`
+	Email   []string `json:"email"`
+	PAUSEID string   `json:"pauseid"`
 	Website []string `json:"website"`
 }
 

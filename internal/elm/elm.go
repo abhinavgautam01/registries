@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	DefaultURL   = "https://package.elm-lang.org"
-	ecosystem    = "elm"
-	msPerSecond  = 1000
+	DefaultURL  = "https://package.elm-lang.org"
+	ecosystem   = "elm"
+	msPerSecond = 1000
 )
 
 func init() {
@@ -53,7 +53,7 @@ func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 // parsePackageName splits "author/name" into author and name
 func parsePackageName(name string) (author, pkg string) {
 	parts := strings.SplitN(name, "/", 2) //nolint:mnd // author/name split
-	if len(parts) == 2 {                 //nolint:mnd
+	if len(parts) == 2 {                  //nolint:mnd
 		return parts[0], parts[1]
 	}
 	return "", name
@@ -67,14 +67,14 @@ type packageResponse struct {
 }
 
 type elmJson struct {
-	Type            string            `json:"type"`
-	Name            string            `json:"name"`
-	Summary         string            `json:"summary"`
-	License         string            `json:"license"`
-	Version         string            `json:"version"`
-	ExposedModules  interface{}       `json:"exposed-modules"`
-	ElmVersion      string            `json:"elm-version"`
-	Dependencies    map[string]string `json:"dependencies"`
+	Type             string            `json:"type"`
+	Name             string            `json:"name"`
+	Summary          string            `json:"summary"`
+	License          string            `json:"license"`
+	Version          string            `json:"version"`
+	ExposedModules   interface{}       `json:"exposed-modules"`
+	ElmVersion       string            `json:"elm-version"`
+	Dependencies     map[string]string `json:"dependencies"`
 	TestDependencies map[string]string `json:"test-dependencies"`
 }
 

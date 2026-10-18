@@ -62,38 +62,38 @@ func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 }
 
 type packageResponse struct {
-	Name          string        `json:"name"`
-	Summary       string        `json:"summary"`
-	Description   string        `json:"description"`
-	License       string        `json:"license"`
-	LicenseURL    string        `json:"license_url"`
-	DevURL        string        `json:"dev_url"`
-	HomeURL       string        `json:"home"`
-	DocURL        string        `json:"doc_url"`
-	SourceURL     string        `json:"source_url"`
-	Versions      []string      `json:"versions"`
-	LatestVersion string        `json:"latest_version"`
-	Files         []fileInfo    `json:"files"`
-	Owner         string        `json:"owner"`
-	PublicAccess  bool          `json:"public_access"`
+	Name          string     `json:"name"`
+	Summary       string     `json:"summary"`
+	Description   string     `json:"description"`
+	License       string     `json:"license"`
+	LicenseURL    string     `json:"license_url"`
+	DevURL        string     `json:"dev_url"`
+	HomeURL       string     `json:"home"`
+	DocURL        string     `json:"doc_url"`
+	SourceURL     string     `json:"source_url"`
+	Versions      []string   `json:"versions"`
+	LatestVersion string     `json:"latest_version"`
+	Files         []fileInfo `json:"files"`
+	Owner         string     `json:"owner"`
+	PublicAccess  bool       `json:"public_access"`
 }
 
 type fileInfo struct {
-	Version   string            `json:"version"`
-	Basename  string            `json:"basename"`
-	Attrs     fileAttrs         `json:"attrs"`
-	UploadTime int64            `json:"upload_time"`
-	MD5       string            `json:"md5"`
-	SHA256    string            `json:"sha256"`
-	Size      int64             `json:"size"`
-	Ndownloads int64            `json:"ndownloads"`
+	Version    string    `json:"version"`
+	Basename   string    `json:"basename"`
+	Attrs      fileAttrs `json:"attrs"`
+	UploadTime int64     `json:"upload_time"`
+	MD5        string    `json:"md5"`
+	SHA256     string    `json:"sha256"`
+	Size       int64     `json:"size"`
+	Ndownloads int64     `json:"ndownloads"`
 }
 
 type fileAttrs struct {
-	Depends  []string `json:"depends"`
-	Arch     string   `json:"arch"`
-	Platform string   `json:"platform"`
-	BuildNumber int   `json:"build_number"`
+	Depends     []string `json:"depends"`
+	Arch        string   `json:"arch"`
+	Platform    string   `json:"platform"`
+	BuildNumber int      `json:"build_number"`
 }
 
 // parsePackageName parses a package name that may include a channel prefix

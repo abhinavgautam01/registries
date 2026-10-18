@@ -24,13 +24,13 @@ func TestFetchPackage(t *testing.T) {
 					Items: []registrationLeaf{
 						{
 							CatalogEntry: catalogEntry{
-								ID:               "Newtonsoft.Json",
-								Version:          "13.0.3",
-								Description:      "Json.NET is a popular high-performance JSON framework for .NET",
-								ProjectURL:       "https://www.newtonsoft.com/products/json",
+								ID:                "Newtonsoft.Json",
+								Version:           "13.0.3",
+								Description:       "Json.NET is a popular high-performance JSON framework for .NET",
+								ProjectURL:        "https://www.newtonsoft.com/products/json",
 								LicenseExpression: "MIT",
-								Listed:           true,
-								Tags:             []string{"json"},
+								Listed:            true,
+								Tags:              []string{"json"},
 							},
 						},
 					},

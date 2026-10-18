@@ -49,11 +49,11 @@ func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 }
 
 type packageResponse struct {
-	Name      string           `json:"name"`
-	Meta      metaInfo         `json:"meta"`
-	Releases  []releaseInfo    `json:"releases"`
-	Downloads downloadsInfo    `json:"downloads"`
-	Owners    []ownerInfo      `json:"owners"`
+	Name      string        `json:"name"`
+	Meta      metaInfo      `json:"meta"`
+	Releases  []releaseInfo `json:"releases"`
+	Downloads downloadsInfo `json:"downloads"`
+	Owners    []ownerInfo   `json:"owners"`
 }
 
 type metaInfo struct {
@@ -77,10 +77,10 @@ type ownerInfo struct {
 }
 
 type versionResponse struct {
-	Version    string                 `json:"version"`
-	Checksum   string                 `json:"checksum"`
-	Downloads  int                    `json:"downloads"`
-	Retirement map[string]interface{} `json:"retirement"`
+	Version      string                     `json:"version"`
+	Checksum     string                     `json:"checksum"`
+	Downloads    int                        `json:"downloads"`
+	Retirement   map[string]interface{}     `json:"retirement"`
 	Requirements map[string]requirementInfo `json:"requirements"`
 }
 

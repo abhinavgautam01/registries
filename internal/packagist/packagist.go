@@ -70,17 +70,17 @@ type maintainerInfo struct {
 }
 
 type versionInfo struct {
-	Name             string            `json:"name"`
-	Description      string            `json:"description"`
-	Version          string            `json:"version"`
-	VersionNormalized string           `json:"version_normalized"`
-	License          []string          `json:"license"`
-	Homepage         string            `json:"homepage"`
-	Time             string            `json:"time"`
-	Source           sourceInfo        `json:"source"`
-	Dist             distInfo          `json:"dist"`
-	Require          map[string]string `json:"require"`
-	RequireDev       map[string]string `json:"require-dev"`
+	Name              string            `json:"name"`
+	Description       string            `json:"description"`
+	Version           string            `json:"version"`
+	VersionNormalized string            `json:"version_normalized"`
+	License           []string          `json:"license"`
+	Homepage          string            `json:"homepage"`
+	Time              string            `json:"time"`
+	Source            sourceInfo        `json:"source"`
+	Dist              distInfo          `json:"dist"`
+	Require           map[string]string `json:"require"`
+	RequireDev        map[string]string `json:"require-dev"`
 }
 
 type sourceInfo struct {
