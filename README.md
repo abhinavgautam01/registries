@@ -208,10 +208,14 @@ type Package struct {
     Namespace     string         // @scope for npm, groupId for maven
     LatestVersion string         // latest version (populated by some registries)
     Metadata      map[string]any // registry-specific data
+    Maintainers   []Maintainer   // populated when the package endpoint includes them
+    FundingLinks  []string       // funding or sponsorship URLs
 }
 ```
 
 Some registries (npm, pub, deno, conda) populate `LatestVersion` directly. For others, use `FetchLatestVersionFromPURL`.
+
+`Maintainers` is filled in by npm and hex, whose package endpoints already return maintainer data. Other registries leave it nil; use `FetchMaintainers` for those. `FundingLinks` is filled in from npm `funding`, RubyGems `funding_uri`, Hex links and PyPI `project_urls` whose labels mention funding, sponsoring or donating.
 
 ### Version
 

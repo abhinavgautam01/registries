@@ -14,6 +14,14 @@ type Package struct {
 	Namespace     string         // @scope for npm, groupId for maven
 	LatestVersion string         // latest version if returned by registry
 	Metadata      map[string]any // registry-specific data
+
+	// Maintainers is populated when the package endpoint already returns
+	// maintainer data. It is nil otherwise; use FetchMaintainers instead.
+	Maintainers []Maintainer
+
+	// FundingLinks lists funding or sponsorship URLs declared for the
+	// package. It is nil when the registry exposes none.
+	FundingLinks []string
 }
 
 // Version represents a specific version of a package.

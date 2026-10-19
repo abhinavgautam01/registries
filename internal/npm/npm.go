@@ -209,6 +209,10 @@ func (r *Registry) FetchPackage(ctx context.Context, name string) (*core.Package
 			"dist-tags": resp.DistTags,
 			"funding":   latest.Funding,
 		},
+		FundingLinks: extractFundingLinks(latest.Funding),
+	}
+	if len(resp.Maintainers) > 0 {
+		pkg.Maintainers = convertMaintainers(resp.Maintainers)
 	}
 
 	return pkg, nil
@@ -354,16 +358,41 @@ func (r *Registry) FetchMaintainers(ctx context.Context, name string) ([]core.Ma
 		return nil, err
 	}
 
-	maintainers := make([]core.Maintainer, len(resp.Maintainers))
-	for i, m := range resp.Maintainers {
+	return convertMaintainers(resp.Maintainers), nil
+}
+
+func convertMaintainers(infos []maintainerInfo) []core.Maintainer {
+	maintainers := make([]core.Maintainer, len(infos))
+	for i, m := range infos {
 		maintainers[i] = core.Maintainer{
 			UUID:  m.Name,
 			Login: m.Name,
 			Email: m.Email,
 		}
 	}
+	return maintainers
+}
 
-	return maintainers, nil
+// extractFundingLinks normalizes the package.json "funding" field, which may
+// be a URL string, an object with a "url" key, or an array mixing both.
+// Declaration order is kept since npm treats the first entry as primary.
+func extractFundingLinks(v interface{}) []string {
+	items, ok := v.([]interface{})
+	if !ok {
+		items = []interface{}{v}
+	}
+	var links []string
+	for _, item := range items {
+		switch f := item.(type) {
+		case string:
+			links = core.AppendFundingLink(links, f)
+		case map[string]interface{}:
+			if u, ok := f["url"].(string); ok {
+				links = core.AppendFundingLink(links, u)
+			}
+		}
+	}
+	return links
 }
 
 func extractString(v interface{}) string {
