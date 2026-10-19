@@ -122,6 +122,7 @@ func (r *Registry) FetchPackage(ctx context.Context, name string) (*core.Package
 			"downloads":   resp.Downloads,
 			"funding_uri": resp.FundingURI,
 		},
+		FundingLinks: core.AppendFundingLink(nil, resp.FundingURI),
 	}, nil
 }
 

@@ -129,6 +129,11 @@ func (r *Registry) FetchPackage(ctx context.Context, name string) (*core.Package
 		}
 	}
 
+	var maintainers []core.Maintainer
+	if len(resp.Owners) > 0 {
+		maintainers = convertOwners(resp.Owners)
+	}
+
 	return &core.Package{
 		Name:        resp.Name,
 		Description: resp.Meta.Description,
@@ -139,6 +144,8 @@ func (r *Registry) FetchPackage(ctx context.Context, name string) (*core.Package
 			"downloads": resp.Downloads.All,
 			"links":     resp.Meta.Links,
 		},
+		Maintainers:  maintainers,
+		FundingLinks: core.FundingLinksFromLabels(resp.Meta.Links),
 	}, nil
 }
 
@@ -241,16 +248,19 @@ func (r *Registry) FetchMaintainers(ctx context.Context, name string) ([]core.Ma
 		return nil, err
 	}
 
-	maintainers := make([]core.Maintainer, len(resp.Owners))
-	for i, owner := range resp.Owners {
+	return convertOwners(resp.Owners), nil
+}
+
+func convertOwners(owners []ownerInfo) []core.Maintainer {
+	maintainers := make([]core.Maintainer, len(owners))
+	for i, owner := range owners {
 		maintainers[i] = core.Maintainer{
 			UUID:  owner.Username,
 			Login: owner.Username,
 			Email: owner.Email,
 		}
 	}
-
-	return maintainers, nil
+	return maintainers
 }
 
 type URLs struct {

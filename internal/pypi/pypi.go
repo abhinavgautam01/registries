@@ -113,6 +113,7 @@ func (r *Registry) FetchPackage(ctx context.Context, name string) (*core.Package
 			"documentation":   resp.Info.ProjectURLs["Documentation"],
 			"normalized_name": normalizeName(resp.Info.Name),
 		},
+		FundingLinks: core.FundingLinksFromLabels(resp.Info.ProjectURLs),
 	}, nil
 }
 
