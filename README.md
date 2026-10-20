@@ -1,6 +1,6 @@
 # registries
 
-Go library for fetching package metadata from registry APIs. Supports 26 ecosystems with a unified interface. Also provides sub-packages for HTTP client usage (`client/`) and streaming artifact downloads (`fetch/`).
+Go library for fetching package metadata from registry APIs. Supports 27 ecosystems with a unified interface. Also provides sub-packages for HTTP client usage (`client/`) and streaming artifact downloads (`fetch/`).
 
 ## Installation
 
@@ -192,6 +192,45 @@ import _ "github.com/git-pkgs/registries/all"
 | Homebrew | `brew` | https://formulae.brew.sh |
 | Deno | `deno` | https://apiland.deno.dev |
 | Terraform | `terraform` | https://registry.terraform.io |
+| Swift | `swift` | URL required |
+
+### Swift registries
+
+Swift lookups require an explicit registry URL and a registry identity:
+
+```go
+reg, err := registries.New("swift", "https://registry.example.com", nil)
+// Handle err before using reg.
+pkg, err := reg.FetchPackage(ctx, "scope.package-name")
+versions, err := reg.FetchVersions(ctx, "scope.package-name")
+```
+
+Import `registries/all` to register the adapter. Identities are case-insensitive.
+Source coordinates such as `github.com/owner/repo` are rejected; the adapter does
+not infer registry identities from repository names. Swift source-based PURLs
+cannot drive these lookups, and `URLs().PURL` returns an empty string.
+
+`FetchPackage` reads metadata from the release named by the registry's
+`latest-version` link, falling back to the highest available stable release and
+then the highest prerelease. Pagination and release metadata URLs must stay on
+the registry's origin.
+`FetchVersions` follows pagination and fetches each available release
+for its publication time, source archive URL and SHA256 checksum. A release
+reported with a protocol `problem` is returned as `retracted`, with the problem
+retained in its metadata. Other fetch or decoding failures return an error rather
+than a partial version list.
+
+Release metadata retains fields such as `licenseURL`, `author` and
+`repositoryURLs`. A license URL is not converted into an SPDX expression, and an
+author is not treated as a maintainer. Original publication time takes precedence
+over registry publication time. Archive signatures are retained in artifact
+metadata but are not verified.
+
+`FetchDependencies` and `FetchMaintainers` return errors wrapping
+`errors.ErrUnsupported`. The registry protocol supplies executable Swift
+manifests rather than structured dependency data, and has no maintainer endpoint.
+The adapter does not execute Swift or download archives. Authentication can be
+provided through the shared client's HTTP transport.
 
 ## Types
 
