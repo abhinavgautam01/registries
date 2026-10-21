@@ -54,16 +54,29 @@ func DefaultClient() *Client {
 
 // GetJSON fetches a URL and decodes the JSON response into v.
 func (c *Client) GetJSON(ctx context.Context, url string, v any) error {
-	body, err := c.GetBody(ctx, url)
+	_, err := c.GetJSONWithHeaders(ctx, url, nil, v)
+	return err
+}
+
+// GetJSONWithHeaders sends request headers and returns response headers.
+// It uses the same retry and rate-limit policy as GetJSON.
+func (c *Client) GetJSONWithHeaders(ctx context.Context, url string, headers http.Header, v any) (http.Header, error) {
+	body, responseHeaders, err := c.getBody(ctx, url, headers)
 	if err != nil {
-		return err
+		return responseHeaders, err
 	}
-	return json.Unmarshal(body, v)
+	return responseHeaders, json.Unmarshal(body, v)
 }
 
 // GetBody fetches a URL and returns the response body.
 func (c *Client) GetBody(ctx context.Context, url string) ([]byte, error) {
+	body, _, err := c.getBody(ctx, url, nil)
+	return body, err
+}
+
+func (c *Client) getBody(ctx context.Context, url string, headers http.Header) ([]byte, http.Header, error) {
 	var lastErr error
+	var lastHeaders http.Header
 
 	for attempt := 0; attempt <= c.MaxRetries; attempt++ {
 		if attempt > 0 {
@@ -73,64 +86,71 @@ func (c *Client) GetBody(ctx context.Context, url string) ([]byte, error) {
 
 			select {
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				return nil, nil, ctx.Err()
 			case <-time.After(delay):
 			}
 		}
 
 		if c.RateLimiter != nil {
 			if err := c.RateLimiter.Wait(ctx); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 		}
 
-		body, err := c.doRequest(ctx, url)
+		body, responseHeaders, err := c.doRequest(ctx, url, headers)
 		if err == nil {
-			return body, nil
+			return body, responseHeaders, nil
 		}
 
 		lastErr = err
+		lastHeaders = responseHeaders
 		if errors.Is(err, ErrUpstreamHeld) {
-			return nil, err
+			return nil, responseHeaders, err
 		}
 		var rateErr *RateLimitError
 		if errors.As(err, &rateErr) {
-			return nil, err
+			return nil, responseHeaders, err
 		}
 
 		var httpErr *HTTPError
 		if ok := isHTTPError(err, &httpErr); ok {
 			if httpErr.StatusCode == http.StatusNotFound {
-				return nil, err
+				return nil, responseHeaders, err
 			}
 			if httpErr.StatusCode == http.StatusTooManyRequests || httpErr.StatusCode >= http.StatusInternalServerError {
 				continue
 			}
-			return nil, err
+			return nil, responseHeaders, err
 		}
 	}
 
-	return nil, lastErr
+	return nil, lastHeaders, lastErr
 }
 
-func (c *Client) doRequest(ctx context.Context, url string) ([]byte, error) {
+func (c *Client) doRequest(ctx context.Context, url string, headers http.Header) ([]byte, http.Header, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	req.Header.Set("User-Agent", c.UserAgent)
 	req.Header.Set("Accept", "application/json")
+	for key, values := range headers {
+		req.Header.Del(key)
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
 	if err != nil {
-		return nil, err
+		return nil, resp.Header, err
 	}
 
 	if resp.StatusCode >= http.StatusBadRequest {
@@ -145,13 +165,13 @@ func (c *Client) doRequest(ctx context.Context, url string) ([]byte, error) {
 				if delay%time.Second != 0 {
 					seconds++
 				}
-				return nil, &RateLimitError{RetryAfter: int(seconds)}
+				return nil, resp.Header, &RateLimitError{RetryAfter: int(seconds)}
 			}
 		}
-		return nil, httpErr
+		return nil, resp.Header, httpErr
 	}
 
-	return body, nil
+	return body, resp.Header, nil
 }
 
 func isHTTPError(err error, target **HTTPError) bool {

@@ -17,7 +17,7 @@ import (
 func TestSupportedEcosystems(t *testing.T) {
 	ecosystems := registries.SupportedEcosystems()
 
-	expected := []string{"brew", "cargo", "clojars", "cocoapods", "composer", "conda", "cpan", "cran", "deno", "dub", "elm", "gem", "golang", "hackage", "haxelib", "helm", "hex", "julia", "luarocks", "maven", "nimble", "npm", "nuget", "pub", "pypi", "terraform"}
+	expected := []string{"brew", "cargo", "clojars", "cocoapods", "composer", "conda", "cpan", "cran", "deno", "dub", "elm", "gem", "golang", "hackage", "haxelib", "helm", "hex", "julia", "luarocks", "maven", "nimble", "npm", "nuget", "pub", "pypi", "swift", "terraform"}
 	sort.Strings(ecosystems)
 
 	if len(ecosystems) != len(expected) {
@@ -62,6 +62,7 @@ func TestNew(t *testing.T) {
 		{"deno", false},
 		{"terraform", false},
 		{"helm", true},
+		{"swift", true},
 		{"unknown", true},
 	}
 
@@ -106,6 +107,7 @@ func TestDefaultURL(t *testing.T) {
 		{"deno", "https://apiland.deno.dev"},
 		{"terraform", "https://registry.terraform.io"},
 		{"helm", ""},
+		{"swift", ""},
 	}
 
 	for _, tt := range tests {
