@@ -23,6 +23,8 @@ const (
 	minCoordParts = 2
 	// coordPartsWithVersion is the number of parts when version is included (group:artifact:version)
 	coordPartsWithVersion = 3
+	// searchRows is how many versions one search request returns dates for.
+	searchRows = 200
 )
 
 func init() {
@@ -32,7 +34,10 @@ func init() {
 }
 
 type Registry struct {
-	baseURL   string
+	baseURL string
+	// searchURL is Central's search API, which has the publish dates that
+	// maven-metadata.xml lacks. It is empty for any other repository, whose
+	// versions Central's search doesn't describe.
 	searchURL string
 	client    *core.Client
 	resolver  *pom.Resolver
@@ -44,9 +49,11 @@ func New(baseURL string, client *core.Client) *Registry {
 		baseURL = DefaultURL
 	}
 	r := &Registry{
-		baseURL:   strings.TrimSuffix(baseURL, "/"),
-		searchURL: SearchURL,
-		client:    client,
+		baseURL: strings.TrimSuffix(baseURL, "/"),
+		client:  client,
+	}
+	if r.baseURL == DefaultURL {
+		r.searchURL = SearchURL
 	}
 	r.urls = &URLs{baseURL: r.baseURL}
 	r.resolver = pom.NewResolver(pom.NewCachingFetcher(&clientFetcher{client: client, baseURL: r.baseURL}))
@@ -79,25 +86,6 @@ func (r *Registry) Ecosystem() string {
 
 func (r *Registry) URLs() core.URLBuilder { //nolint:ireturn
 	return r.urls
-}
-
-// searchResponse represents the Maven Central Search API response
-type searchResponse struct {
-	Response searchResponseBody `json:"response"`
-}
-
-type searchResponseBody struct {
-	NumFound int         `json:"numFound"`
-	Docs     []searchDoc `json:"docs"`
-}
-
-type searchDoc struct {
-	ID         string `json:"id"`
-	GroupID    string `json:"g"`
-	ArtifactID string `json:"a"`
-	// core=gav returns the version in "v"; "latestVersion" only exists on the non-gav aggregated core.
-	Version   string `json:"v"`
-	Timestamp int64  `json:"timestamp"`
 }
 
 // pomDevelopers is the minimal XML shape needed for FetchMaintainers; the
@@ -146,43 +134,26 @@ func (r *Registry) FetchPackage(ctx context.Context, name string) (*core.Package
 		return nil, fmt.Errorf("invalid Maven coordinate: %s (expected groupId:artifactId)", name)
 	}
 
-	// First try the search API to get basic metadata
-	searchURL := fmt.Sprintf("%s/solrsearch/select?q=g:%s+AND+a:%s&core=gav&rows=1&wt=json",
-		r.searchURL, url.QueryEscape(groupID), url.QueryEscape(artifactID))
-
-	var searchResp searchResponse
-	if err := r.client.GetJSON(ctx, searchURL, &searchResp); err == nil && searchResp.Response.NumFound > 0 {
-		doc := searchResp.Response.Docs[0]
-		// Fetch the POM for more details
-		ep, _ := r.effectivePOM(ctx, groupID, artifactID, doc.Version)
-		return r.packageFromSearchAndPOM(doc, ep), nil
-	}
-
-	// Fallback: try to get maven-metadata.xml
-	metadataURL := fmt.Sprintf("%s/%s/%s/maven-metadata.xml",
-		r.baseURL, groupIDToPath(groupID), artifactID)
-
-	body, err := r.client.GetBody(ctx, metadataURL)
+	metadata, err := r.fetchMetadata(ctx, name, groupID, artifactID)
 	if err != nil {
-		if httpErr, ok := err.(*core.HTTPError); ok && httpErr.IsNotFound() {
-			return nil, &core.NotFoundError{Ecosystem: ecosystem, Name: name}
-		}
 		return nil, err
 	}
 
-	var metadata mavenMetadata
-	if err := xml.Unmarshal(body, &metadata); err != nil {
-		return nil, err
+	latest := metadata.latestVersion()
+	pkg := &core.Package{
+		Name:          fmt.Sprintf("%s:%s", groupID, artifactID),
+		Namespace:     groupID,
+		LatestVersion: latest,
+		Metadata: map[string]any{
+			"group_id":    groupID,
+			"artifact_id": artifactID,
+		},
 	}
-
-	// Get the latest version's POM
-	latestVersion := metadata.Versioning.Latest
-	if latestVersion == "" && len(metadata.Versioning.Versions) > 0 {
-		latestVersion = metadata.Versioning.Versions[len(metadata.Versioning.Versions)-1]
+	if latest != "" {
+		ep, _ := r.effectivePOM(ctx, groupID, artifactID, latest)
+		applyPOMMetadata(pkg, ep)
 	}
-
-	ep, _ := r.effectivePOM(ctx, groupID, artifactID, latestVersion)
-	return r.packageFromMetadataAndPOM(metadata, ep), nil
+	return pkg, nil
 }
 
 type mavenMetadata struct {
@@ -197,32 +168,39 @@ type versioning struct {
 	Versions []string `xml:"versions>version"`
 }
 
-func (r *Registry) packageFromSearchAndPOM(doc searchDoc, ep *pom.EffectivePOM) *core.Package {
-	pkg := &core.Package{
-		Name:      fmt.Sprintf("%s:%s", doc.GroupID, doc.ArtifactID),
-		Namespace: doc.GroupID,
-		Metadata: map[string]any{
-			"group_id":    doc.GroupID,
-			"artifact_id": doc.ArtifactID,
-		},
+// latestVersion prefers <release>, then <latest>, then the last listed version.
+func (m *mavenMetadata) latestVersion() string {
+	if m.Versioning.Release != "" {
+		return m.Versioning.Release
 	}
-
-	applyPOMMetadata(pkg, ep)
-	return pkg
+	if m.Versioning.Latest != "" {
+		return m.Versioning.Latest
+	}
+	if n := len(m.Versioning.Versions); n > 0 {
+		return m.Versioning.Versions[n-1]
+	}
+	return ""
 }
 
-func (r *Registry) packageFromMetadataAndPOM(metadata mavenMetadata, ep *pom.EffectivePOM) *core.Package {
-	pkg := &core.Package{
-		Name:      fmt.Sprintf("%s:%s", metadata.GroupID, metadata.ArtifactID),
-		Namespace: metadata.GroupID,
-		Metadata: map[string]any{
-			"group_id":    metadata.GroupID,
-			"artifact_id": metadata.ArtifactID,
-		},
+// fetchMetadata reads maven-metadata.xml from the configured repository.
+func (r *Registry) fetchMetadata(ctx context.Context, name, groupID, artifactID string) (*mavenMetadata, error) {
+	metadataURL := fmt.Sprintf("%s/%s/%s/maven-metadata.xml",
+		r.baseURL, groupIDToPath(groupID), artifactID)
+
+	body, err := r.client.GetBody(ctx, metadataURL)
+	if err != nil {
+		var httpErr *core.HTTPError
+		if errors.As(err, &httpErr) && httpErr.IsNotFound() {
+			return nil, &core.NotFoundError{Ecosystem: ecosystem, Name: name}
+		}
+		return nil, err
 	}
 
-	applyPOMMetadata(pkg, ep)
-	return pkg
+	var metadata mavenMetadata
+	if err := xml.Unmarshal(body, &metadata); err != nil {
+		return nil, err
+	}
+	return &metadata, nil
 }
 
 func applyPOMMetadata(pkg *core.Package, ep *pom.EffectivePOM) {
@@ -239,57 +217,62 @@ func applyPOMMetadata(pkg *core.Package, ep *pom.EffectivePOM) {
 	pkg.Licenses = strings.Join(names, ",")
 }
 
+// FetchVersions lists the versions in maven-metadata.xml, newest first.
+// The metadata carries no per-version dates. For Maven Central they are
+// taken from the search API where it has them; elsewhere PublishedAt stays
+// empty.
 func (r *Registry) FetchVersions(ctx context.Context, name string) ([]core.Version, error) {
 	groupID, artifactID, _ := ParseCoordinates(name)
 	if groupID == "" || artifactID == "" {
 		return nil, fmt.Errorf("invalid Maven coordinate: %s (expected groupId:artifactId)", name)
 	}
 
-	// Use search API to get all versions
-	searchURL := fmt.Sprintf("%s/solrsearch/select?q=g:%s+AND+a:%s&core=gav&rows=200&wt=json",
-		r.searchURL, url.QueryEscape(groupID), url.QueryEscape(artifactID))
-
-	var searchResp searchResponse
-	if err := r.client.GetJSON(ctx, searchURL, &searchResp); err == nil && searchResp.Response.NumFound > 0 {
-		versions := make([]core.Version, len(searchResp.Response.Docs))
-		for i, doc := range searchResp.Response.Docs {
-			var publishedAt time.Time
-			if doc.Timestamp > 0 {
-				publishedAt = time.UnixMilli(doc.Timestamp)
-			}
-			versions[i] = core.Version{
-				Number:      doc.Version,
-				PublishedAt: publishedAt,
-			}
-		}
-		return versions, nil
-	}
-
-	// Fallback: maven-metadata.xml
-	metadataURL := fmt.Sprintf("%s/%s/%s/maven-metadata.xml",
-		r.baseURL, groupIDToPath(groupID), artifactID)
-
-	body, err := r.client.GetBody(ctx, metadataURL)
+	metadata, err := r.fetchMetadata(ctx, name, groupID, artifactID)
 	if err != nil {
-		if httpErr, ok := err.(*core.HTTPError); ok && httpErr.IsNotFound() {
-			return nil, &core.NotFoundError{Ecosystem: ecosystem, Name: name}
-		}
 		return nil, err
 	}
 
-	var metadata mavenMetadata
-	if err := xml.Unmarshal(body, &metadata); err != nil {
-		return nil, err
+	dates := r.searchDates(ctx, groupID, artifactID)
+	listed := metadata.Versioning.Versions
+	versions := make([]core.Version, len(listed))
+	for i, v := range listed {
+		versions[len(listed)-1-i] = core.Version{Number: v, PublishedAt: dates[v]}
 	}
-
-	versions := make([]core.Version, len(metadata.Versioning.Versions))
-	for i, v := range metadata.Versioning.Versions {
-		versions[i] = core.Version{
-			Number: v,
-		}
-	}
-
 	return versions, nil
+}
+
+type searchResponse struct {
+	Response struct {
+		Docs []searchDoc `json:"docs"`
+	} `json:"response"`
+}
+
+type searchDoc struct {
+	// core=gav returns the version in "v".
+	Version   string `json:"v"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+// searchDates returns the publish dates Central's search API has for the
+// newest versions of an artifact. Search only adds dates, so a failure
+// leaves them out rather than failing the lookup.
+func (r *Registry) searchDates(ctx context.Context, groupID, artifactID string) map[string]time.Time {
+	if r.searchURL == "" {
+		return nil
+	}
+	searchURL := fmt.Sprintf("%s/solrsearch/select?q=g:%s+AND+a:%s&core=gav&rows=%d&wt=json",
+		r.searchURL, url.QueryEscape(groupID), url.QueryEscape(artifactID), searchRows)
+	var resp searchResponse
+	if err := r.client.GetJSON(ctx, searchURL, &resp); err != nil {
+		return nil
+	}
+	dates := make(map[string]time.Time, len(resp.Response.Docs))
+	for _, doc := range resp.Response.Docs {
+		if doc.Version != "" && doc.Timestamp > 0 {
+			dates[doc.Version] = time.UnixMilli(doc.Timestamp)
+		}
+	}
+	return dates
 }
 
 func (r *Registry) FetchDependencies(ctx context.Context, name, version string) ([]core.Dependency, error) {
@@ -345,16 +328,15 @@ func (r *Registry) FetchMaintainers(ctx context.Context, name string) ([]core.Ma
 		return nil, fmt.Errorf("invalid Maven coordinate: %s (expected groupId:artifactId)", name)
 	}
 
-	// Get latest version first
-	versions, err := r.FetchVersions(ctx, name)
+	metadata, err := r.fetchMetadata(ctx, name, groupID, artifactID)
 	if err != nil {
 		return nil, err
 	}
-	if len(versions) == 0 {
+	latestVersion := metadata.latestVersion()
+	if latestVersion == "" {
 		return nil, nil
 	}
 
-	latestVersion := versions[0].Number
 	body, err := r.client.GetBody(ctx, pom.POMURL(r.baseURL, pom.GAV{GroupID: groupID, ArtifactID: artifactID, Version: latestVersion}))
 	if err != nil {
 		return nil, err

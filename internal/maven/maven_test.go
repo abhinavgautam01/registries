@@ -2,12 +2,17 @@ package maven
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/git-pkgs/registries/client"
 	"github.com/git-pkgs/registries/internal/core"
 )
 
@@ -36,23 +41,22 @@ func TestParseCoordinates(t *testing.T) {
 func TestFetchPackage(t *testing.T) {
 	mux := http.NewServeMux()
 
-	// Search API endpoint
-	mux.HandleFunc("/solrsearch/select", func(w http.ResponseWriter, r *http.Request) {
-		resp := searchResponse{
-			Response: searchResponseBody{
-				NumFound: 1,
-				Docs: []searchDoc{
-					{
-						ID:         "com.google.guava:guava",
-						GroupID:    "com.google.guava",
-						ArtifactID: "guava",
-						Version:    "32.1.0-jre",
-					},
-				},
-			},
-		}
-		_ = json.NewEncoder(w).Encode(resp)
+	mux.HandleFunc("/com/google/guava/guava/maven-metadata.xml", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>com.google.guava</groupId>
+  <artifactId>guava</artifactId>
+  <versioning>
+    <latest>33.0.0-SNAPSHOT</latest>
+    <release>32.1.0-jre</release>
+    <versions>
+      <version>31.1-jre</version>
+      <version>32.1.0-jre</version>
+    </versions>
+  </versioning>
+</metadata>`))
 	})
+	failOtherRequests(t, mux)
 
 	// POM endpoint
 	mux.HandleFunc("/com/google/guava/guava/32.1.0-jre/guava-32.1.0-jre.pom", func(w http.ResponseWriter, r *http.Request) {
@@ -80,11 +84,14 @@ func TestFetchPackage(t *testing.T) {
 	defer server.Close()
 
 	reg := New(server.URL, core.DefaultClient())
-	reg.searchURL = server.URL
 
 	pkg, err := reg.FetchPackage(context.Background(), "com.google.guava:guava")
 	if err != nil {
 		t.Fatalf("FetchPackage failed: %v", err)
+	}
+
+	if pkg.LatestVersion != "32.1.0-jre" {
+		t.Errorf("expected latest version '32.1.0-jre', got %q", pkg.LatestVersion)
 	}
 
 	if pkg.Name != "com.google.guava:guava" {
@@ -101,92 +108,20 @@ func TestFetchPackage(t *testing.T) {
 	}
 }
 
+// failOtherRequests fails the test on any request the mux has no route for,
+// such as a call to a search API.
+func failOtherRequests(t *testing.T, mux *http.ServeMux) {
+	t.Helper()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected request %s", r.URL)
+		http.NotFound(w, r)
+	})
+}
+
 func TestFetchVersions(t *testing.T) {
 	mux := http.NewServeMux()
-
-	mux.HandleFunc("/solrsearch/select", func(w http.ResponseWriter, r *http.Request) {
-		resp := searchResponse{
-			Response: searchResponseBody{
-				NumFound: 3,
-				Docs: []searchDoc{
-					{GroupID: "org.apache.commons", ArtifactID: "commons-lang3", Version: "3.14.0", Timestamp: 1699900000000},
-					{GroupID: "org.apache.commons", ArtifactID: "commons-lang3", Version: "3.13.0", Timestamp: 1689100000000},
-					{GroupID: "org.apache.commons", ArtifactID: "commons-lang3", Version: "3.12.0", Timestamp: 1678300000000},
-				},
-			},
-		}
-		_ = json.NewEncoder(w).Encode(resp)
-	})
-
-	server := httptest.NewServer(mux)
-	defer server.Close()
-
-	reg := New(server.URL, core.DefaultClient())
-	reg.searchURL = server.URL
-
-	versions, err := reg.FetchVersions(context.Background(), "org.apache.commons:commons-lang3")
-	if err != nil {
-		t.Fatalf("FetchVersions failed: %v", err)
-	}
-
-	if len(versions) != 3 {
-		t.Fatalf("expected 3 versions, got %d", len(versions))
-	}
-
-	if versions[0].Number != "3.14.0" {
-		t.Errorf("expected version '3.14.0', got %q", versions[0].Number)
-	}
-	if versions[0].PublishedAt.IsZero() {
-		t.Error("expected non-zero published time")
-	}
-}
-
-func TestFetchVersionsParsesRealSolrGavShape(t *testing.T) {
-	const body = `{"responseHeader":{"status":0},"response":{"numFound":3,"start":0,"docs":[
-		{"id":"org.slf4j:slf4j-api:2.0.17","g":"org.slf4j","a":"slf4j-api","v":"2.0.17","p":"jar","timestamp":1740501794416},
-		{"id":"org.slf4j:slf4j-api:2.0.16","g":"org.slf4j","a":"slf4j-api","v":"2.0.16","p":"jar","timestamp":1725000000000},
-		{"id":"org.slf4j:slf4j-api:1.7.36","g":"org.slf4j","a":"slf4j-api","v":"1.7.36","p":"jar","timestamp":1645000000000}
-	]}}`
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/solrsearch/select", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(body))
-	})
-	server := httptest.NewServer(mux)
-	defer server.Close()
-
-	reg := New(server.URL, core.DefaultClient())
-	reg.searchURL = server.URL
-
-	versions, err := reg.FetchVersions(context.Background(), "org.slf4j:slf4j-api")
-	if err != nil {
-		t.Fatalf("FetchVersions failed: %v", err)
-	}
-	got := make([]string, len(versions))
-	for i, v := range versions {
-		if v.Number == "" {
-			t.Fatalf("version %d has empty Number - searchDoc is not reading the Solr \"v\" field", i)
-		}
-		got[i] = v.Number
-	}
-	want := []string{"2.0.17", "2.0.16", "1.7.36"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("versions = %v, want %v", got, want)
-	}
-}
-
-func TestFetchVersionsFallback(t *testing.T) {
-	mux := http.NewServeMux()
-
-	// Search API returns empty
-	mux.HandleFunc("/solrsearch/select", func(w http.ResponseWriter, r *http.Request) {
-		resp := searchResponse{Response: searchResponseBody{NumFound: 0}}
-		_ = json.NewEncoder(w).Encode(resp)
-	})
-
-	// Fallback to maven-metadata.xml
 	mux.HandleFunc("/com/example/test/maven-metadata.xml", func(w http.ResponseWriter, r *http.Request) {
-		metadata := `<?xml version="1.0" encoding="UTF-8"?>
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 <metadata>
   <groupId>com.example</groupId>
   <artifactId>test</artifactId>
@@ -198,23 +133,62 @@ func TestFetchVersionsFallback(t *testing.T) {
       <version>2.0.0</version>
     </versions>
   </versioning>
-</metadata>`
-		_, _ = w.Write([]byte(metadata))
+</metadata>`))
 	})
-
+	failOtherRequests(t, mux)
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
 	reg := New(server.URL, core.DefaultClient())
-	reg.searchURL = server.URL
 
 	versions, err := reg.FetchVersions(context.Background(), "com.example:test")
 	if err != nil {
 		t.Fatalf("FetchVersions failed: %v", err)
 	}
+	got := make([]string, len(versions))
+	for i, v := range versions {
+		got[i] = v.Number
+	}
+	want := []string{"2.0.0", "1.5.0", "1.0.0"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("versions = %v, want %v", got, want)
+	}
+}
 
-	if len(versions) != 3 {
-		t.Fatalf("expected 3 versions, got %d", len(versions))
+func TestFetchVersionsListsEveryVersion(t *testing.T) {
+	const count = 329
+	var b strings.Builder
+	b.WriteString("<metadata><versioning><versions>")
+	for i := range count {
+		fmt.Fprintf(&b, "<version>1.%d.0</version>", i)
+	}
+	b.WriteString("</versions></versioning></metadata>")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/net/bytebuddy/byte-buddy/maven-metadata.xml", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(b.String()))
+	})
+	failOtherRequests(t, mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	versions, err := New(server.URL, core.DefaultClient()).FetchVersions(context.Background(), "net.bytebuddy:byte-buddy")
+	if err != nil {
+		t.Fatalf("FetchVersions failed: %v", err)
+	}
+	if len(versions) != count {
+		t.Fatalf("expected %d versions, got %d", count, len(versions))
+	}
+}
+
+func TestFetchVersionsNotFound(t *testing.T) {
+	server := httptest.NewServer(http.NotFoundHandler())
+	defer server.Close()
+
+	_, err := New(server.URL, core.DefaultClient()).FetchVersions(context.Background(), "com.example:missing")
+	var notFound *core.NotFoundError
+	if !errors.As(err, &notFound) {
+		t.Fatalf("expected NotFoundError, got %v", err)
 	}
 }
 
@@ -288,17 +262,10 @@ func TestFetchDependencies(t *testing.T) {
 func TestFetchMaintainers(t *testing.T) {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/solrsearch/select", func(w http.ResponseWriter, r *http.Request) {
-		resp := searchResponse{
-			Response: searchResponseBody{
-				NumFound: 1,
-				Docs: []searchDoc{
-					{GroupID: "com.example", ArtifactID: "test", Version: "1.0.0"},
-				},
-			},
-		}
-		_ = json.NewEncoder(w).Encode(resp)
+	mux.HandleFunc("/com/example/test/maven-metadata.xml", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<metadata><versioning><release>1.0.0</release><versions><version>0.9.0</version><version>1.0.0</version></versions></versioning></metadata>`))
 	})
+	failOtherRequests(t, mux)
 
 	mux.HandleFunc("/com/example/test/1.0.0/test-1.0.0.pom", func(w http.ResponseWriter, r *http.Request) {
 		pom := `<?xml version="1.0" encoding="UTF-8"?>
@@ -326,7 +293,6 @@ func TestFetchMaintainers(t *testing.T) {
 	defer server.Close()
 
 	reg := New(server.URL, core.DefaultClient())
-	reg.searchURL = server.URL
 
 	maintainers, err := reg.FetchMaintainers(context.Background(), "com.example:test")
 	if err != nil {
@@ -473,5 +439,121 @@ func TestEcosystem(t *testing.T) {
 	reg := New("", nil)
 	if reg.Ecosystem() != "maven" {
 		t.Errorf("expected ecosystem 'maven', got %q", reg.Ecosystem())
+	}
+}
+
+const threeVersionMetadata = `<metadata><versioning><versions>
+<version>1.0.0</version><version>1.5.0</version><version>2.0.0</version>
+</versions></versioning></metadata>`
+
+// centralRegistry returns a registry for server that queries server's
+// search API the way New does for Maven Central.
+func centralRegistry(server *httptest.Server) *Registry {
+	reg := New(server.URL, client.NewClient(client.WithMaxRetries(0)))
+	reg.searchURL = server.URL
+	return reg
+}
+
+func TestFetchVersionsCentralAddsSearchDates(t *testing.T) {
+	published := time.Date(2024, 5, 1, 12, 0, 0, 0, time.UTC)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/com/example/test/maven-metadata.xml", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(threeVersionMetadata))
+	})
+	mux.HandleFunc("/solrsearch/select", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if q.Get("q") != "g:com.example AND a:test" || q.Get("core") != "gav" || q.Get("rows") != "200" {
+			t.Errorf("unexpected search query %s", r.URL.RawQuery)
+		}
+		_, _ = fmt.Fprintf(w, `{"response":{"numFound":2,"docs":[{"v":"2.0.0","timestamp":%d},{"v":"1.5.0","timestamp":%d}]}}`,
+			published.UnixMilli(), published.Add(-24*time.Hour).UnixMilli())
+	})
+	failOtherRequests(t, mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	versions, err := centralRegistry(server).FetchVersions(context.Background(), "com.example:test")
+	if err != nil {
+		t.Fatalf("FetchVersions failed: %v", err)
+	}
+	want := map[string]time.Time{
+		"2.0.0": published,
+		"1.5.0": published.Add(-24 * time.Hour),
+		"1.0.0": {}, // not in the search results
+	}
+	if len(versions) != len(want) {
+		t.Fatalf("got %d versions, want %d", len(versions), len(want))
+	}
+	for _, v := range versions {
+		if !v.PublishedAt.Equal(want[v.Number]) {
+			t.Errorf("%s PublishedAt = %v, want %v", v.Number, v.PublishedAt, want[v.Number])
+		}
+	}
+}
+
+func TestFetchVersionsCentralSearchFailureKeepsVersions(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/com/example/test/maven-metadata.xml", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(threeVersionMetadata))
+	})
+	mux.HandleFunc("/solrsearch/select", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	})
+	failOtherRequests(t, mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	versions, err := centralRegistry(server).FetchVersions(context.Background(), "com.example:test")
+	if err != nil {
+		t.Fatalf("FetchVersions failed: %v", err)
+	}
+	got := make([]string, len(versions))
+	for i, v := range versions {
+		got[i] = v.Number
+		if !v.PublishedAt.IsZero() {
+			t.Errorf("%s PublishedAt = %v, want none", v.Number, v.PublishedAt)
+		}
+	}
+	if want := []string{"2.0.0", "1.5.0", "1.0.0"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("versions = %v, want %v", got, want)
+	}
+}
+
+// hostOnlyTransport refuses requests to any host but one and records them.
+type hostOnlyTransport struct {
+	host  string
+	other []string
+}
+
+func (h *hostOnlyTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.URL.Host != h.host {
+		h.other = append(h.other, r.URL.String())
+		return nil, fmt.Errorf("unexpected request to %s", r.URL.Host)
+	}
+	return http.DefaultTransport.RoundTrip(r)
+}
+
+func TestFetchVersionsCustomRepositorySkipsSearch(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/com/example/test/maven-metadata.xml", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(threeVersionMetadata))
+	})
+	failOtherRequests(t, mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	serverURL, _ := url.Parse(server.URL)
+	transport := &hostOnlyTransport{host: serverURL.Host}
+	reg := New(server.URL, client.NewClient(client.WithMaxRetries(0), client.WithHTTPClient(&http.Client{Transport: transport})))
+
+	versions, err := reg.FetchVersions(context.Background(), "com.example:test")
+	if err != nil {
+		t.Fatalf("FetchVersions failed: %v", err)
+	}
+	if len(versions) != 3 {
+		t.Fatalf("got %d versions, want 3", len(versions))
+	}
+	if len(transport.other) > 0 {
+		t.Errorf("requests outside the repository: %v", transport.other)
 	}
 }
