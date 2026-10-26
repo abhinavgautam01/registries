@@ -205,6 +205,46 @@ func TestFetchDependencies(t *testing.T) {
 	}
 }
 
+func TestFetchDependenciesResolvesProviders(t *testing.T) {
+	index := realIndex(t) +
+		"P:libcurl\nV:8.22.0-r0\nD:so:libc.musl-x86_64.so.1 so:libz.so.1\np:so:libcurl.so.4=4.8.0\n\n" +
+		"P:musl\nV:1.2.5-r10\np:so:libc.musl-x86_64.so.1=1\n\n" +
+		"P:zlib\nV:1.3.1-r2\np:so:libz.so.1=1.3.1\n\n" +
+		"P:zlib-ng-compat\nV:2.2.4-r0\nk:10\np:so:libz.so.1=1.3.1\n\n" +
+		"P:samepriority\nV:1.0-r0\nD:cmd:tool\n\n" +
+		"P:tool-b\nV:1.0-r0\np:cmd:tool\n\n" +
+		"P:tool-a\nV:1.0-r0\np:cmd:tool\n\n" +
+		"P:python3\nV:3.12.12-r0\n\n" +
+		"P:py3-requests\nV:2.33.1-r0\nD:python3 python3~3.12 zlib>=1 zlib<2 py3-requests\n"
+	server := repoServer(t, map[string]string{"x86_64": index})
+	reg := New(server.URL+"/x86_64", core.DefaultClient())
+
+	tests := map[string]string{
+		"curl":         "libcurl|=8.22.0-r0 musl| zlib-ng-compat|",
+		"libcurl":      "musl| zlib-ng-compat|",
+		"samepriority": "tool-a|",
+		"busybox":      "musl|",
+		"py3-requests": "python3|~3.12 zlib|>=1 zlib|<2",
+	}
+	for name, want := range tests {
+		versions, err := reg.FetchVersions(context.Background(), name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		deps, err := reg.FetchDependencies(context.Background(), name, versions[0].Number)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		var got []string
+		for _, d := range deps {
+			got = append(got, d.Name+"|"+d.Requirements)
+		}
+		if strings.Join(got, " ") != want {
+			t.Errorf("%s deps = %v, want %s", name, got, want)
+		}
+	}
+}
+
 func TestExactVersionsWithRevisions(t *testing.T) {
 	index := "P:pkg\nV:1.2.3-r9\nA:x86_64\n\nP:pkg\nV:1.2.3-r10\nA:x86_64\n\nP:pkg\nV:1.2.3_rc1-r0\nA:x86_64\n"
 	server := repoServer(t, map[string]string{"x86_64": index})
@@ -271,8 +311,10 @@ func TestExactIndexURL(t *testing.T) {
 }
 
 func TestV3Index(t *testing.T) {
+	var probes []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/"+indexV3) {
+			probes = append(probes, r.Method)
 			_, _ = w.Write([]byte("ADB.indx"))
 			return
 		}
@@ -285,6 +327,9 @@ func TestV3Index(t *testing.T) {
 		if !errors.Is(err, ErrV3IndexUnsupported) {
 			t.Errorf("%s: err = %v, want ErrV3IndexUnsupported", base, err)
 		}
+	}
+	if strings.Join(probes, " ") != http.MethodHead {
+		t.Errorf("Packages.adb requests = %v, want one HEAD", probes)
 	}
 }
 
@@ -496,6 +541,10 @@ func TestURLs(t *testing.T) {
 		{u.Download("alpine/curl", "8.22.0-r0"), "https://dl-cdn.alpinelinux.org/alpine/v3.23/main/x86_64/curl-8.22.0-r0.apk"},
 		{u.Download("curl", "8.22.0-r0"), "https://dl-cdn.alpinelinux.org/alpine/v3.23/main/x86_64/curl-8.22.0-r0.apk"},
 		{u.Download("curl", ""), ""},
+		{u.Download("curl", "../../edge/main/x86_64/other-1.0-r0"), ""},
+		{u.Download("curl", "1.0-r0?x"), ""},
+		{u.Download("curl", "1.0-r0%2F"), ""},
+		{u.Download(`cu\rl`, "1.0-r0"), ""},
 		{u.PURL("alpine/curl", "8.22.0-r0"), "pkg:apk/alpine/curl@8.22.0-r0"},
 		{u.PURL("curl", ""), "pkg:apk/curl"},
 		{u.Registry("curl", ""), ""},

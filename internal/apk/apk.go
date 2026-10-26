@@ -56,14 +56,24 @@ func init() {
 // https://dl-cdn.alpinelinux.org/alpine/v3.23/main/x86_64, or an exact index
 // URL inside one. The release, component and architecture are never inferred
 // from a higher-level mirror URL.
+//
+// The index is downloaded once per Registry and kept for its lifetime, so
+// callers looking up many packages should reuse one Registry per repository.
 type Registry struct {
 	dirURL   string
 	indexURL string // empty for a directory, which is probed
 	client   *core.Client
 	urls     *URLs
 
-	mu       sync.Mutex
+	mu  sync.Mutex
+	idx *repoIndex
+}
+
+type repoIndex struct {
 	packages map[string][]record
+	// providers maps a virtual name from p:, such as so:libz.so.1, to the
+	// package chosen to satisfy it.
+	providers map[string]string
 }
 
 func New(baseURL string, client *core.Client) *Registry {
@@ -118,11 +128,11 @@ func splitName(name string) (namespace, pkg string) {
 	return "", name
 }
 
-func (r *Registry) index(ctx context.Context) (map[string][]record, error) {
+func (r *Registry) index(ctx context.Context) (*repoIndex, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.packages != nil {
-		return r.packages, nil
+	if r.idx != nil {
+		return r.idx, nil
 	}
 
 	body, err := r.fetchIndex(ctx)
@@ -143,8 +153,33 @@ func (r *Registry) index(ctx context.Context) (map[string][]record, error) {
 			return vers.CompareWithScheme(recs[i].version, recs[j].version, ecosystem) > 0
 		})
 	}
-	r.packages = packages
-	return packages, nil
+	r.idx = &repoIndex{packages: packages, providers: buildProviders(records)}
+	return r.idx, nil
+}
+
+// buildProviders picks one package per virtual name: the highest k: provider
+// priority, then the lowest name so the choice is stable.
+func buildProviders(records []record) map[string]string {
+	type choice struct {
+		name     string
+		priority int64
+	}
+	best := make(map[string]choice)
+	for _, rec := range records {
+		for _, p := range rec.provides {
+			virtual, _ := splitConstraint(p)
+			cur, ok := best[virtual]
+			if !ok || rec.providerPriority > cur.priority ||
+				(rec.providerPriority == cur.priority && rec.name < cur.name) {
+				best[virtual] = choice{rec.name, rec.providerPriority}
+			}
+		}
+	}
+	providers := make(map[string]string, len(best))
+	for virtual, c := range best {
+		providers[virtual] = c.name
+	}
+	return providers
 }
 
 // fetchIndex downloads APKINDEX.tar.gz. For a directory it asks for
@@ -159,13 +194,14 @@ func (r *Registry) fetchIndex(ctx context.Context) ([]byte, error) {
 	}
 
 	v3URL := r.dirURL + "/" + indexV3
-	_, err := r.client.GetBody(ctx, v3URL)
-	if err == nil {
-		return nil, fmt.Errorf("%w: %s", ErrV3IndexUnsupported, v3URL)
-	}
-	var httpErr *core.HTTPError
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusNotFound {
+	status, err := r.client.Head(ctx, v3URL)
+	switch {
+	case err != nil:
 		return nil, err
+	case status >= 200 && status < 300:
+		return nil, fmt.Errorf("%w: %s", ErrV3IndexUnsupported, v3URL)
+	case status != http.StatusNotFound:
+		return nil, &core.HTTPError{StatusCode: status, URL: v3URL}
 	}
 	return r.client.GetBody(ctx, r.dirURL+"/"+indexV2)
 }
@@ -343,12 +379,12 @@ func parseMaintainer(value string) core.Maintainer {
 }
 
 func (r *Registry) lookup(ctx context.Context, name string) ([]record, error) {
-	packages, err := r.index(ctx)
+	idx, err := r.index(ctx)
 	if err != nil {
 		return nil, err
 	}
 	_, pkg := splitName(name)
-	recs := packages[pkg]
+	recs := idx.packages[pkg]
 	if len(recs) == 0 {
 		return nil, &core.NotFoundError{Ecosystem: ecosystem, Name: name}
 	}
@@ -417,19 +453,30 @@ func (r *Registry) version(rec record) core.Version {
 		}
 	}
 
-	filename := rec.name + "-" + rec.version + ".apk"
-	return core.Version{
+	v := core.Version{
 		Number:      rec.version,
 		PublishedAt: rec.buildTime,
 		Licenses:    rec.license,
 		Metadata:    metadata,
-		Artifacts: []core.Artifact{{
+	}
+	if filename, ok := packageFilename(rec.name, rec.version); ok {
+		v.Artifacts = []core.Artifact{{
 			URL:      r.dirURL + "/" + filename,
 			Filename: filename,
 			Size:     rec.size,
 			Metadata: map[string]any{archKey: rec.arch},
-		}},
+		}}
 	}
+	return v
+}
+
+// packageFilename refuses names and versions that would make the file URL
+// point anywhere other than a file in the index's directory.
+func packageFilename(name, version string) (string, bool) {
+	if name == "" || version == "" || strings.ContainsAny(name+version, `/\?#%`) {
+		return "", false
+	}
+	return name + "-" + version + ".apk", true
 }
 
 func (r *Registry) FetchDependencies(ctx context.Context, name, version string) ([]core.Dependency, error) {
@@ -438,20 +485,43 @@ func (r *Registry) FetchDependencies(ctx context.Context, name, version string) 
 		return nil, err
 	}
 	for _, rec := range recs {
-		if rec.version != version {
-			continue
+		if rec.version == version {
+			return r.idx.dependencies(rec), nil
 		}
-		deps := make([]core.Dependency, 0, len(rec.depends))
-		for _, d := range rec.depends {
-			if strings.HasPrefix(d, "!") {
-				continue // conflict, kept in version metadata
-			}
-			depName, requirement := splitConstraint(d)
-			deps = append(deps, core.Dependency{Name: depName, Requirements: requirement, Scope: core.Runtime})
-		}
-		return deps, nil
 	}
 	return nil, &core.NotFoundError{Ecosystem: ecosystem, Name: name, Version: version}
+}
+
+// dependencies resolves virtual names such as so:libz.so.1 to the package
+// providing them. A constraint on a virtual name applies to the provided
+// version, not the package's, so it is dropped. A virtual name with no
+// provider in this index, usually one from another repository, is kept as is.
+func (idx *repoIndex) dependencies(rec record) []core.Dependency {
+	deps := make([]core.Dependency, 0, len(rec.depends))
+	seen := map[string]int{rec.name: -1}
+	for _, d := range rec.depends {
+		if strings.HasPrefix(d, "!") {
+			continue // conflict, kept in version metadata
+		}
+		depName, requirement := splitConstraint(d)
+		if _, ok := idx.packages[depName]; !ok {
+			if provider, ok := idx.providers[depName]; ok {
+				depName, requirement = provider, ""
+			}
+		}
+		// "python3 python3~3.12" is one dependency; ">=1 <2" stays as two.
+		if i, ok := seen[depName]; ok {
+			if i >= 0 && deps[i].Requirements == "" {
+				deps[i].Requirements = requirement
+			}
+			if i < 0 || requirement == "" || deps[i].Requirements == requirement {
+				continue
+			}
+		}
+		seen[depName] = len(deps)
+		deps = append(deps, core.Dependency{Name: depName, Requirements: requirement, Scope: core.Runtime})
+	}
+	return deps
 }
 
 // splitConstraint splits "libcurl=8.22.0-r0" into "libcurl" and "=8.22.0-r0".
@@ -484,11 +554,12 @@ func (u *URLs) Registry(name, version string) string {
 // Download returns the package file beside the index. The name may carry a
 // PURL vendor namespace.
 func (u *URLs) Download(name, version string) string {
-	if version == "" {
+	_, pkg := splitName(name)
+	filename, ok := packageFilename(pkg, version)
+	if !ok {
 		return ""
 	}
-	_, pkg := splitName(name)
-	return fmt.Sprintf("%s/%s-%s.apk", u.dirURL, pkg, version)
+	return u.dirURL + "/" + filename
 }
 
 func (u *URLs) Documentation(name, version string) string {
