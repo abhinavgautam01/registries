@@ -253,3 +253,43 @@ func TestResponseWithinLimit(t *testing.T) {
 		t.Fatalf("got %q, want %q", string(body), payload)
 	}
 }
+
+type countingLimiter struct{ waits int }
+
+func (l *countingLimiter) Wait(context.Context) error {
+	l.waits++
+	return nil
+}
+
+func TestHeadRetriesAndRateLimits(t *testing.T) {
+	var methods []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		methods = append(methods, r.Method)
+		switch {
+		case r.URL.Path == "/missing":
+			w.WriteHeader(http.StatusNotFound)
+		case len(methods) == 1:
+			w.WriteHeader(http.StatusBadGateway)
+		}
+	}))
+	defer srv.Close()
+
+	limiter := &countingLimiter{}
+	c := NewClient(WithMaxRetries(1)).WithRateLimiter(limiter)
+	c.BaseDelay = 0
+
+	status, err := c.Head(context.Background(), srv.URL)
+	if err != nil || status != http.StatusOK {
+		t.Errorf("Head = %d, %v; want 200 after a retry", status, err)
+	}
+	status, err = c.Head(context.Background(), srv.URL+"/missing")
+	if err != nil || status != http.StatusNotFound {
+		t.Errorf("Head missing = %d, %v; want 404 and no error", status, err)
+	}
+	if strings.Join(methods, " ") != "HEAD HEAD HEAD" {
+		t.Errorf("requests = %v", methods)
+	}
+	if limiter.waits != 3 {
+		t.Errorf("rate limiter waits = %d, want 3", limiter.waits)
+	}
+}
