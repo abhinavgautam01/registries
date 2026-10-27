@@ -84,7 +84,7 @@ func (c *Client) GetBody(ctx context.Context, url string) ([]byte, error) {
 
 func (c *Client) getBody(ctx context.Context, url string, headers http.Header) ([]byte, http.Header, error) {
 	var body []byte
-	resp, responseHeaders, err := c.open(ctx, url, headers, func(resp *http.Response) error {
+	resp, responseHeaders, err := c.open(ctx, http.MethodGet, url, headers, func(resp *http.Response) error {
 		defer func() { _ = resp.Body.Close() }()
 		var err error
 		body, err = readLimited(resp.Body, url, c.maxResponseSize())
@@ -102,7 +102,7 @@ func (c *Client) getBody(ctx context.Context, url string, headers http.Header) (
 // while fn reads the body is returned as is. fn must consume the complete
 // JSON document; trailing data and body read errors are rejected.
 func (c *Client) StreamJSON(ctx context.Context, url string, fn func(*json.Decoder) error) error {
-	resp, _, err := c.open(ctx, url, nil, nil)
+	resp, _, err := c.open(ctx, http.MethodGet, url, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func (l *limitedReader) Read(p []byte) (int, error) {
 // open retries requests and optional body reads within one retry budget.
 // read must close the body; a nil read leaves it open for the caller. On
 // failure it returns the headers of the last response received, if any.
-func (c *Client) open(ctx context.Context, url string, headers http.Header, read func(*http.Response) error) (*http.Response, http.Header, error) {
+func (c *Client) open(ctx context.Context, method, url string, headers http.Header, read func(*http.Response) error) (*http.Response, http.Header, error) {
 	var lastErr error
 	var lastHeaders http.Header
 
@@ -202,7 +202,7 @@ func (c *Client) open(ctx context.Context, url string, headers http.Header, read
 			}
 		}
 
-		resp, responseHeaders, err := c.doRequest(ctx, url, headers)
+		resp, responseHeaders, err := c.doRequest(ctx, method, url, headers)
 		if err == nil && read != nil {
 			err = read(resp)
 		}
@@ -235,8 +235,8 @@ func (c *Client) open(ctx context.Context, url string, headers http.Header, read
 	return nil, lastHeaders, lastErr
 }
 
-func (c *Client) doRequest(ctx context.Context, url string, headers http.Header) (*http.Response, http.Header, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func (c *Client) doRequest(ctx context.Context, method, url string, headers http.Header) (*http.Response, http.Header, error) {
+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -297,22 +297,21 @@ func (c *Client) GetText(ctx context.Context, url string) (string, error) {
 	return string(body), nil
 }
 
-// Head sends a HEAD request and returns the status code.
+// Head sends a HEAD request and returns the status code, with the same retry
+// and rate-limit policy as GetBody. An HTTP error status is returned as the
+// status code, not an error.
 func (c *Client) Head(ctx context.Context, url string) (int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
-	if err != nil {
-		return 0, err
+	resp, _, err := c.open(ctx, http.MethodHead, url, nil, func(resp *http.Response) error {
+		return resp.Body.Close()
+	})
+	if err == nil {
+		return resp.StatusCode, nil
 	}
-
-	req.Header.Set("User-Agent", c.UserAgent)
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return 0, err
+	var httpErr *HTTPError
+	if isHTTPError(err, &httpErr) {
+		return httpErr.StatusCode, nil
 	}
-	_ = resp.Body.Close()
-
-	return resp.StatusCode, nil
+	return 0, err
 }
 
 // WithRateLimiter returns a copy of the client with the given rate limiter.
