@@ -333,20 +333,36 @@ func TestV3Index(t *testing.T) {
 	}
 }
 
-func TestProbeErrorIsNotFallback(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/"+indexV3) {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-		_, _ = w.Write(buildIndex(t, "P:curl\nV:8.22.0-r0\n"))
-	}))
-	defer server.Close()
+func TestProbeStatusHandling(t *testing.T) {
+	tests := []struct {
+		status   int
+		fallback bool
+	}{
+		{http.StatusForbidden, true},
+		{http.StatusGone, true},
+		{http.StatusMethodNotAllowed, true},
+		{http.StatusInternalServerError, false},
+	}
+	for _, tt := range tests {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(r.URL.Path, "/"+indexV3) {
+				w.WriteHeader(tt.status)
+				return
+			}
+			_, _ = w.Write(buildIndex(t, "P:curl\nV:8.22.0-r0\n"))
+		}))
 
-	_, err := New(server.URL+"/x86_64", core.DefaultClient()).FetchVersions(context.Background(), "curl")
-	var httpErr *core.HTTPError
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusForbidden {
-		t.Errorf("err = %v, want the 403 from Packages.adb", err)
+		client := core.DefaultClient()
+		client.MaxRetries = 0
+		_, err := New(server.URL+"/x86_64", client).FetchVersions(context.Background(), "curl")
+		var httpErr *core.HTTPError
+		if tt.fallback && err != nil {
+			t.Errorf("probe %d: err = %v, want fallback to APKINDEX.tar.gz", tt.status, err)
+		}
+		if !tt.fallback && (!errors.As(err, &httpErr) || httpErr.StatusCode != tt.status) {
+			t.Errorf("probe %d: err = %v, want the probe error surfaced", tt.status, err)
+		}
+		server.Close()
 	}
 }
 
@@ -545,8 +561,8 @@ func TestURLs(t *testing.T) {
 		{u.Download("curl", "1.0-r0?x"), ""},
 		{u.Download("curl", "1.0-r0%2F"), ""},
 		{u.Download(`cu\rl`, "1.0-r0"), ""},
-		{u.PURL("alpine/curl", "8.22.0-r0"), "pkg:apk/alpine/curl@8.22.0-r0"},
-		{u.PURL("curl", ""), "pkg:apk/curl"},
+		{u.PURL("alpine/curl", "8.22.0-r0"), "pkg:apk/alpine/curl@8.22.0-r0?repository_url=https%3A%2F%2Fdl-cdn.alpinelinux.org%2Falpine%2Fv3.23%2Fmain%2Fx86_64"},
+		{u.PURL("curl", ""), "pkg:apk/curl?repository_url=https%3A%2F%2Fdl-cdn.alpinelinux.org%2Falpine%2Fv3.23%2Fmain%2Fx86_64"},
 		{u.Registry("curl", ""), ""},
 	}
 	for _, tt := range tests {

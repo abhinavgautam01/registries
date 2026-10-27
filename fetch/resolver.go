@@ -122,6 +122,15 @@ type ResolveOptions struct {
 // metadata of the same name.
 var selectionQualifiers = []string{"arch", "distro", "subdir", "build"}
 
+func (o ResolveOptions) hasSelectionQualifier() bool {
+	for _, key := range selectionQualifiers {
+		if o.Qualifiers[key] != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // Resolve returns the download URL and filename for a package artifact.
 func (r *Resolver) Resolve(ctx context.Context, ecosystem, name, version string) (*ArtifactInfo, error) {
 	return r.ResolveWithOptions(ctx, ecosystem, name, version, ResolveOptions{})
@@ -143,13 +152,17 @@ func (r *Resolver) ResolveWithOptions(
 		return matchSingleArtifact(info, options, err)
 	}
 
-	// Try the simple URL builder first
-	if url := reg.URLs().Download(name, version); url != "" {
-		info := &ArtifactInfo{
-			URL:      url,
-			Filename: filenameFromURL(url),
+	// Try the simple URL builder first. It can't honour selection
+	// qualifiers such as arch, so a request carrying one goes through
+	// the metadata path where qualifiersMatch is applied.
+	if !options.hasSelectionQualifier() {
+		if url := reg.URLs().Download(name, version); url != "" {
+			info := &ArtifactInfo{
+				URL:      url,
+				Filename: filenameFromURL(url),
+			}
+			return matchSingleArtifact(info, options, nil)
 		}
-		return matchSingleArtifact(info, options, nil)
 	}
 
 	// For ecosystems like PyPI, we need to fetch metadata to get the URL

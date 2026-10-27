@@ -1,7 +1,11 @@
 package fetch
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -28,6 +32,38 @@ func TestResolveAPK(t *testing.T) {
 	}
 	if info.Filename != "curl-8.22.0-r0.apk" {
 		t.Errorf("Filename = %q", info.Filename)
+	}
+}
+
+func TestResolveAPKArchQualifierMismatch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/APKINDEX.tar.gz") {
+			http.NotFound(w, r)
+			return
+		}
+		var buf bytes.Buffer
+		gz := gzip.NewWriter(&buf)
+		tw := tar.NewWriter(gz)
+		body := "P:curl\nV:8.22.0-r0\nA:x86_64\n"
+		_ = tw.WriteHeader(&tar.Header{Name: "APKINDEX", Mode: 0o644, Size: int64(len(body))})
+		_, _ = tw.Write([]byte(body))
+		_ = tw.Close()
+		_ = gz.Close()
+		_, _ = w.Write(buf.Bytes())
+	}))
+	defer server.Close()
+
+	reg, err := registries.New("apk", server.URL+"/x86_64", registries.DefaultClient())
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := NewResolver()
+	r.RegisterRegistry(reg)
+
+	info, err := r.ResolveWithOptions(context.Background(), "apk", "alpine/curl", "8.22.0-r0",
+		ResolveOptions{Qualifiers: map[string]string{"arch": "aarch64"}})
+	if !errors.Is(err, ErrNoMatchingArtifact) {
+		t.Fatalf("aarch64 against x86_64 = %+v, %v; want ErrNoMatchingArtifact", info, err)
 	}
 }
 

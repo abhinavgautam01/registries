@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -200,9 +201,11 @@ func (r *Registry) fetchIndex(ctx context.Context) ([]byte, error) {
 		return nil, err
 	case status >= 200 && status < 300:
 		return nil, fmt.Errorf("%w: %s", ErrV3IndexUnsupported, v3URL)
-	case status != http.StatusNotFound:
+	case status >= http.StatusInternalServerError:
 		return nil, &core.HTTPError{StatusCode: status, URL: v3URL}
 	}
+	// Any 4xx falls back: 403 is how S3-backed repositories answer for a
+	// missing key, and the probe only asks whether a v3 index is served.
 	return r.client.GetBody(ctx, r.dirURL+"/"+indexV2)
 }
 
@@ -575,6 +578,9 @@ func (u *URLs) PURL(name, version string) string {
 	p += pkg
 	if version != "" {
 		p += "@" + version
+	}
+	if u.dirURL != "" {
+		p += "?repository_url=" + url.QueryEscape(u.dirURL)
 	}
 	return p
 }
