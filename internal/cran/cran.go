@@ -241,11 +241,13 @@ func (r *Registry) FetchVersions(ctx context.Context, name string) ([]core.Versi
 
 func parseArchiveVersions(html, pkgName string) []string {
 	var versions []string
-	// Match patterns like: pkgname_1.2.3.tar.gz
+	// Match patterns like: pkgname_1.2.3.tar.gz. The listing shows each
+	// filename in both the href and the link text, so skip repeats.
 	pattern := regexp.MustCompile(regexp.QuoteMeta(pkgName) + `_([0-9]+\.[0-9]+[0-9.-]*)\.tar\.gz`)
-	matches := pattern.FindAllStringSubmatch(html, -1)
-	for _, m := range matches {
-		if len(m) > 1 {
+	seen := make(map[string]bool)
+	for _, m := range pattern.FindAllStringSubmatch(html, -1) {
+		if len(m) > 1 && !seen[m[1]] {
+			seen[m[1]] = true
 			versions = append(versions, m[1])
 		}
 	}

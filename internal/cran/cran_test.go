@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/git-pkgs/registries/internal/core"
@@ -124,12 +125,13 @@ Published: 2023-11-17
 		t.Fatalf("FetchVersions failed: %v", err)
 	}
 
-	if len(versions) < 1 {
-		t.Fatalf("expected at least 1 version, got %d", len(versions))
+	var got []string
+	for _, v := range versions {
+		got = append(got, v.Number)
 	}
-
-	if versions[0].Number != "1.1.4" {
-		t.Errorf("expected current version '1.1.4', got %q", versions[0].Number)
+	want := []string{"1.1.4", "1.1.3", "1.1.2", "1.0.0"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("versions = %v, want %v with each archived version listed once", got, want)
 	}
 	if versions[0].PublishedAt.IsZero() {
 		t.Error("expected non-zero published time for current version")
